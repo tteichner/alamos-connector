@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -98,6 +99,20 @@ namespace AlamosConnector
             File.Copy(fileSysArgs.FullPath, target, true);
             File.Move(fileSysArgs.FullPath, Path.Combine(targetFolder, fileSysArgs.Name), true);
 
+            ProcessStartInfo info = new ProcessStartInfo();
+            info.Verb = "print";
+            info.FileName = @target;
+            info.CreateNoWindow = true;
+            info.WindowStyle = ProcessWindowStyle.Hidden;
+
+            Process p = new Process();
+            p.StartInfo = info;
+            p.Start();
+
+            p.WaitForInputIdle();
+            Thread.Sleep(3000);
+            if (false == p.CloseMainWindow())
+                p.Kill();
         }
     }
 }
