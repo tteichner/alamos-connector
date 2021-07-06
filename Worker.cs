@@ -35,6 +35,10 @@ namespace AlamosConnector
                     foreach (string vName in rb2.GetValueNames())
                     {
                         logger.LogDebug(vName + "||" + rb2.GetValue(vName));
+                        if (vName == "FolderSettings")
+                        {
+                            fileNameXML = rb2.GetValue(vName).ToString();
+                        }
                     }
                 }
             }
