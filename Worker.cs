@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
+using Microsoft.Win32;
 
 namespace AlamosConnector
 {
@@ -21,8 +22,26 @@ namespace AlamosConnector
         {
             _logger = logger;
 
-            // TODO: Get this from registry
-            string fileNameXML = "C:\\Users\\webma\\projects\\AlamosConnector\\XMLFileFolderSettings.xml";
+            // Get this from registry
+            string? root = System.AppContext.BaseDirectory;
+            string fileNameXML = Path.Combine(root, "XMLFileFolderSettings.xml");
+            try
+            {
+                #pragma warning disable CA1416 // Plattformkompatibilität überprüfen
+                RegistryKey rb = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+                RegistryKey? rb2 = rb.OpenSubKey(@"SOFTWARE\TmT\AlamosConnector");
+                if (rb != null)
+                {
+                    foreach (string vName in rb2.GetValueNames())
+                    {
+                        logger.LogDebug(vName + "||" + rb2.GetValue(vName));
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e.Message);
+            }
 
             // Create an instance of XMLSerializer
             XmlSerializer deserializer = new XmlSerializer(typeof(List<CustomFolderSettings>));
