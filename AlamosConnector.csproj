@@ -13,7 +13,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hueppauff.PdfiumViewer.Core" Version="1.0.19172.6" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="5.0.1" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
@@ -21,5 +20,11 @@
 
   <ItemGroup>
     <Folder Include="Watchdog\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="printit.zip">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

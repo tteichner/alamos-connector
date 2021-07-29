@@ -7,8 +7,9 @@
            
     </FolderDescription>
         <FolderFilter>*.PDF</FolderFilter>
-        <FolderPath>C:\Users\webma\Downloads\ppt\</FolderPath>
+        <FolderPath>C:\Users\webma\Downloads\</FolderPath>
         <FolderIncludeSub>false</FolderIncludeSub>
-        <TargetFolder>print_and_move</TargetFolder>
+        <TargetFolder>C:\Users\webma\OneDrive\Documents\Zoom\</TargetFolder>
+        <PrinterName>Dell C3765dnf Color MFP</PrinterName>
   </CustomFolderSettings>
 </ArrayOfCustomFolderSettings>

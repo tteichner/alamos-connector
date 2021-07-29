@@ -2,15 +2,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Microsoft.Win32;
-using System.Drawing.Printing;
-using PdfiumViewer;
+using System.Net.Http;
 
 namespace AlamosConnector
 {
@@ -118,7 +116,8 @@ namespace AlamosConnector
         private void fileSWatch_Created(object senderObj, FileSystemEventArgs fileSysArgs, CustomFolderSettings folder)
         {
             string tmp = Path.GetTempPath();
-            string target = Path.Combine(tmp, fileSysArgs.Name);
+            string n = Path.GetFileNameWithoutExtension(fileSysArgs.Name);
+            string target = Path.Combine(tmp, String.Format("{0}-{1}.pdf", n, DateTime.Now.ToString("yyyy-MM-dd-HHmm")));
             _logger.LogInformation(String.Format("File found {0}", fileSysArgs.Name));
 
             File.Copy(fileSysArgs.FullPath, target, true);
@@ -128,61 +127,36 @@ namespace AlamosConnector
             File.Move(fileSysArgs.FullPath, finalTarget, true);
             _logger.LogInformation(String.Format("Move to {0}", finalTarget));
 
-            this.printPDF(folder.PrinterName, "A4", target);
+            this.printPDF(folder.PrinterName, target);
         }
 
-        private bool printPDF(string printer, string paperName, string filename)
+        /// <summary>
+        /// List printers by http://localhost:7000/printers/list
+        /// </summary>
+        /// <param name="printer"></param>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        private async Task printPDF(string printer, string filename)
         {
-            try
+            using HttpClient httpClient = new HttpClient(); // If you can, please get a client from IHttpClientFactory instead
+            using var formContent = new MultipartFormDataContent();
+            using var printerPathContent = new StringContent(printer);
+            using var pageRangeContent = new StringContent(string.Empty);
+            using var pdfFileContent = new StreamContent(File.OpenRead(filename));
+
+            formContent.Add(printerPathContent, "printerPath");
+            formContent.Add(pdfFileContent, "pdfFile", "file.pdf");
+
+            var endpoint = new Uri("http://localhost:7000/print/from-pdf");
+            HttpResponseMessage result = await httpClient.PostAsync(endpoint, formContent);
+            if (!result.IsSuccessStatusCode)
             {
-                // Create the printer settings for our printer
-                var printerSettings = new PrinterSettings
-                {
-                    PrinterName = printer,
-                    Copies = 1
-                };
-
-                // Create our page settings for the paper size selected
-                var pageSettings = new PageSettings(printerSettings)
-                {
-                    Margins = new Margins(0, 0, 0, 0),
-                };
-                foreach (PaperSize paperSize in printerSettings.PaperSizes)
-                {
-                    if (paperSize.PaperName == paperName)
-                    {
-                        pageSettings.PaperSize = paperSize;
-                        break;
-                    }
-                }
-
-                if (pageSettings.PaperSize == null)
-                {
-                    _logger.LogWarning(String.Format("The printer {0} has no paper size {1}. Available are:", printerSettings.PrinterName, paperName));
-                    foreach (PaperSize paperSize in printerSettings.PaperSizes)
-                    {
-                        _logger.LogDebug(paperSize.PaperName);
-                    }
-                    return false;
-                }
-
-                // Now print the PDF document
-                using (var document = PdfDocument.Load(filename))
-                {
-                    using (var pd = new PrintDocument())
-                    {
-                        pd.PrinterSettings = printerSettings;
-                        pd.DefaultPageSettings = pageSettings;
-                        pd.PrintController = new StandardPrintController();
-                        pd.Print();
-                    }
-                }
-                return true;
+                string content = await result.Content.ReadAsStringAsync();
+                _logger.LogWarning($"Failed to send PDF for PrintService. StatusCode = {result.StatusCode}, Response = {content}");
             }
-            catch (Exception e)
+            else
             {
-                _logger.LogWarning(e.Message);
-                return false;
+                _logger.LogInformation($"Print document {filename} with printer {printer}");
             }
         }
     }
