@@ -33,7 +33,11 @@ public class CustomFolderSettings
       /// after an event has raised</summary>
     [XmlElement]
     public string TargetFolder { get; set; }
-    /// <summary>Default constructor of the class</summary>       
+
+    /// [XmlElement]
+    public string PrinterName { get; set; }
+
+    /// <summary>Default constructor of the class</summary>
     public CustomFolderSettings()
     {
     }

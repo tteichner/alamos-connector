@@ -9,6 +9,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Microsoft.Win32;
+using System.Drawing.Printing;
+using PdfiumViewer;
 
 namespace AlamosConnector
 {
@@ -30,7 +32,7 @@ namespace AlamosConnector
                 #pragma warning disable CA1416 // Plattformkompatibilität überprüfen
                 RegistryKey rb = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
                 RegistryKey? rb2 = rb.OpenSubKey(@"SOFTWARE\TmT\AlamosConnector");
-                if (rb != null)
+                if (rb2 != null)
                 {
                     foreach (string vName in rb2.GetValueNames())
                     {
@@ -69,7 +71,6 @@ namespace AlamosConnector
                     startFileSystemWatcher();
                 }
 
-
                 await Task.Delay(10000, stoppingToken);
             }
         }
@@ -101,7 +102,7 @@ namespace AlamosConnector
                     fileSWatch.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
                     // Associate the event that will be triggered when a new file
                     // is added to the monitored folder, using a lambda expression                   
-                    fileSWatch.Created += (senderObj, fileSysArgs) => fileSWatch_Created(senderObj, fileSysArgs, targetFolder.ToString());
+                    fileSWatch.Created += (senderObj, fileSysArgs) => fileSWatch_Created(senderObj, fileSysArgs, customFolder);
                     // Begin watching
                     fileSWatch.EnableRaisingEvents = true;
                     // Add the systemWatcher to the list
@@ -114,28 +115,75 @@ namespace AlamosConnector
             }
         }
 
-        private void fileSWatch_Created(object senderObj, FileSystemEventArgs fileSysArgs, string targetFolder)
+        private void fileSWatch_Created(object senderObj, FileSystemEventArgs fileSysArgs, CustomFolderSettings folder)
         {
             string tmp = Path.GetTempPath();
             string target = Path.Combine(tmp, fileSysArgs.Name);
+            _logger.LogInformation(String.Format("File found {0}", fileSysArgs.Name));
 
             File.Copy(fileSysArgs.FullPath, target, true);
-            File.Move(fileSysArgs.FullPath, Path.Combine(targetFolder, fileSysArgs.Name), true);
+            _logger.LogInformation(String.Format("Copy to {0}", target));
 
-            ProcessStartInfo info = new ProcessStartInfo();
-            info.Verb = "print";
-            info.FileName = @target;
-            info.CreateNoWindow = true;
-            info.WindowStyle = ProcessWindowStyle.Hidden;
+            string finalTarget = Path.Combine(folder.TargetFolder, fileSysArgs.Name);
+            File.Move(fileSysArgs.FullPath, finalTarget, true);
+            _logger.LogInformation(String.Format("Move to {0}", finalTarget));
 
-            Process p = new Process();
-            p.StartInfo = info;
-            p.Start();
+            this.printPDF(folder.PrinterName, "A4", target);
+        }
 
-            p.WaitForInputIdle();
-            Thread.Sleep(3000);
-            if (false == p.CloseMainWindow())
-                p.Kill();
+        private bool printPDF(string printer, string paperName, string filename)
+        {
+            try
+            {
+                // Create the printer settings for our printer
+                var printerSettings = new PrinterSettings
+                {
+                    PrinterName = printer,
+                    Copies = 1
+                };
+
+                // Create our page settings for the paper size selected
+                var pageSettings = new PageSettings(printerSettings)
+                {
+                    Margins = new Margins(0, 0, 0, 0),
+                };
+                foreach (PaperSize paperSize in printerSettings.PaperSizes)
+                {
+                    if (paperSize.PaperName == paperName)
+                    {
+                        pageSettings.PaperSize = paperSize;
+                        break;
+                    }
+                }
+
+                if (pageSettings.PaperSize == null)
+                {
+                    _logger.LogWarning(String.Format("The printer {0} has no paper size {1}. Available are:", printerSettings.PrinterName, paperName));
+                    foreach (PaperSize paperSize in printerSettings.PaperSizes)
+                    {
+                        _logger.LogDebug(paperSize.PaperName);
+                    }
+                    return false;
+                }
+
+                // Now print the PDF document
+                using (var document = PdfDocument.Load(filename))
+                {
+                    using (var pd = new PrintDocument())
+                    {
+                        pd.PrinterSettings = printerSettings;
+                        pd.DefaultPageSettings = pageSettings;
+                        pd.PrintController = new StandardPrintController();
+                        pd.Print();
+                    }
+                }
+                return true;
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e.Message);
+                return false;
+            }
         }
     }
 }
