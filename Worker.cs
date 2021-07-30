@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Microsoft.Win32;
 using System.Net.Http;
+using Telegram.Bot.Types.InputFiles;
 
 namespace AlamosConnector
 {
@@ -113,7 +114,7 @@ namespace AlamosConnector
             }
         }
 
-        private void fileSWatch_Created(object senderObj, FileSystemEventArgs fileSysArgs, CustomFolderSettings folder)
+        private async Task fileSWatch_Created(object senderObj, FileSystemEventArgs fileSysArgs, CustomFolderSettings folder)
         {
             string tmp = Path.GetTempPath();
             string n = Path.GetFileNameWithoutExtension(fileSysArgs.Name);
@@ -130,17 +131,17 @@ namespace AlamosConnector
             // print the document with defined printer
             if (!String.IsNullOrWhiteSpace(folder.PrinterName))
             {
-                this.printPDF(folder.PrinterName, target);
+                await this.printPDF(folder.PrinterName, target);
             }
 
             // notify the configured group
             if (!String.IsNullOrWhiteSpace(folder.TelegramBotToken) && !String.IsNullOrWhiteSpace(folder.TelegramBotChannel))
             {
-                this.sendMessage(folder.TelegramBotToken, folder.TelegramBotChannel, "Alarm für die Feuerwehr");
+                await this.sendMessage(folder.TelegramBotToken, folder.TelegramBotChannel, "Alarm für die Feuerwehr", target);
             }
         }
 
-        private async Task sendMessage(string token, string destID, string text)
+        private async Task sendMessage(string token, string destID, string text, string filename)
         {
             try
             {
@@ -153,11 +154,26 @@ namespace AlamosConnector
                 else
                 {
                     _logger.LogInformation($"Sent message to telegram channel {destID}");
+
+                    using (FileStream fs = File.OpenRead(filename))
+                    {
+                        InputOnlineFile inputOnlineFile = new InputOnlineFile(fs, "Alarmfax.pdf");
+                        result = await bot.SendDocumentAsync(destID, inputOnlineFile, null, "Alarmfax");
+                        if (result.MessageId < 0)
+                        {
+                            _logger.LogWarning($"Failed to send file to {destID}");
+                        }
+                        else
+                        {
+                            _logger.LogInformation($"Sent pdf to telegram channel {destID}");
+                        }
+                    }
                 }
             }
             catch (Exception e)
             {
-                Console.WriteLine("err");
+                _logger.LogWarning($"Failed to send message to {destID}");
+                _logger.LogWarning(e.Message);
             }
         }
 
