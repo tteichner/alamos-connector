@@ -26,5 +26,8 @@
     <None Update="printit.zip">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
+    <None Update="scripts\install-print-it.bat">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

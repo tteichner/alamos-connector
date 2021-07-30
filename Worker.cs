@@ -127,7 +127,10 @@ namespace AlamosConnector
             File.Move(fileSysArgs.FullPath, finalTarget, true);
             _logger.LogInformation(String.Format("Move to {0}", finalTarget));
 
-            this.printPDF(folder.PrinterName, target);
+            if (!String.IsNullOrWhiteSpace(folder.PrinterName))
+            {
+                this.printPDF(folder.PrinterName, target);
+            }
         }
 
         /// <summary>
