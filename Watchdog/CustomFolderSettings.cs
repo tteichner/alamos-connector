@@ -37,6 +37,12 @@ public class CustomFolderSettings
     /// [XmlElement]
     public string PrinterName { get; set; }
 
+    /// [XmlElement]
+    public string TelegramBotToken { get; set; }
+
+    /// [XmlElement]
+    public string TelegramBotChannel { get; set; }
+
     /// <summary>Default constructor of the class</summary>
     public CustomFolderSettings()
     {

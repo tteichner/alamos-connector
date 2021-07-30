@@ -127,9 +127,37 @@ namespace AlamosConnector
             File.Move(fileSysArgs.FullPath, finalTarget, true);
             _logger.LogInformation(String.Format("Move to {0}", finalTarget));
 
+            // print the document with defined printer
             if (!String.IsNullOrWhiteSpace(folder.PrinterName))
             {
                 this.printPDF(folder.PrinterName, target);
+            }
+
+            // notify the configured group
+            if (!String.IsNullOrWhiteSpace(folder.TelegramBotToken) && !String.IsNullOrWhiteSpace(folder.TelegramBotChannel))
+            {
+                this.sendMessage(folder.TelegramBotToken, folder.TelegramBotChannel, "Alarm für die Feuerwehr");
+            }
+        }
+
+        private async Task sendMessage(string token, string destID, string text)
+        {
+            try
+            {
+                var bot = new Telegram.Bot.TelegramBotClient(token);
+                var result = await bot.SendTextMessageAsync(destID, text);
+                if (result.MessageId < 0)
+                {
+                    _logger.LogWarning($"Failed to send message to {destID}");
+                }
+                else
+                {
+                    _logger.LogInformation($"Sent message to telegram channel {destID}");
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("err");
             }
         }
 
