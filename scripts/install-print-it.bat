@@ -27,12 +27,16 @@ if '%errorlevel%' NEQ '0' (
 :--------------------------------------
 
 SET mypath=%~dp0
-SET mypath=!mypath!AlamosConnector.exe
+SET mypath2=!mypath!PrintIt.ServiceHost.exe
 
 ECHO Installiere Service:
-ECHO %mypath%
+ECHO %mypath2%
 ECHO -----------------------
 SET /p DUMMY=Hit ENTER to continue...
 
-sc create AlamosConnector BinPath=%mypath% start=auto
+sc create PrintIt binPath=%mypath2% start=auto
+
+ECHO start the service with 'sc start PrintIt'
+ECHO open list http://localhost:7000/printers/list
+ECHO -----------------------
 timeout /T 10 
