@@ -10,6 +10,7 @@ using System.Xml.Serialization;
 using Microsoft.Win32;
 using System.Net.Http;
 using Telegram.Bot.Types.InputFiles;
+using System.Net;
 
 namespace AlamosConnector
 {
@@ -18,6 +19,8 @@ namespace AlamosConnector
         private readonly ILogger<Worker> _logger;
         private List<CustomFolderSettings> _listFolders;
         private List<FileSystemWatcher> listFileSystemWatcher;
+        private bool _stop = false;
+        private CustomFolderSettings customFolder;
 
         public Worker(ILogger<Worker> logger)
         {
@@ -42,24 +45,29 @@ namespace AlamosConnector
                         }
                     }
                 }
+
+                // Create an instance of XMLSerializer
+                XmlSerializer deserializer = new XmlSerializer(typeof(List<CustomFolderSettings>));
+                TextReader reader = new StreamReader(fileNameXML);
+                object obj = deserializer.Deserialize(reader);
+                reader.Close();
+
+                // Obtain a list of CustomFolderSettings from XML Input data
+                _listFolders = obj as List<CustomFolderSettings>;
             }
             catch (Exception e)
             {
                 logger.LogWarning(e.Message);
             }
-
-            // Create an instance of XMLSerializer
-            XmlSerializer deserializer = new XmlSerializer(typeof(List<CustomFolderSettings>));
-            TextReader reader = new StreamReader(fileNameXML);
-            object obj = deserializer.Deserialize(reader);
-            reader.Close();
-
-            // Obtain a list of CustomFolderSettings from XML Input data
-            _listFolders = obj as List<CustomFolderSettings>;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            if (stoppingToken.IsCancellationRequested)
+            {
+                this._stop = true;
+            }
+            
             while (!stoppingToken.IsCancellationRequested)
             {
                 _logger.LogDebug("Worker running at: {time}", DateTimeOffset.Now);
@@ -74,58 +82,115 @@ namespace AlamosConnector
             }
         }
 
+        private string downloadFtpFile(string name)
+        {
+            using (WebClient r = new WebClient())
+            {
+                r.Credentials = new NetworkCredential(customFolder.TargetFolderUser, customFolder.TargetFolderPass);
+                string url = $"{customFolder.FolderPath}{name}";
+                byte[] fileData = r.DownloadData(url);
+                string tmp = Path.GetTempPath();
+                string target = Path.Combine(tmp, name);
+
+                using (FileStream file = File.Create(target))
+                {
+                    file.Write(fileData, 0, fileData.Length);
+                    file.Close();
+                    _logger.LogInformation($"File downloaded: {target}");
+                }
+
+                return target;
+            }
+        }
+
+        private bool deleteFtpFile(string name)
+        {
+            var request = this.connect($"{customFolder.FolderPath}{name}");
+            request.Method = WebRequestMethods.Ftp.DeleteFile;
+            using (FtpWebResponse r2 = (FtpWebResponse)request.GetResponse())
+            {
+                _logger.LogInformation($"File deleted: {r2.StatusCode}, {r2.StatusDescription}");
+                return r2.StatusCode == FtpStatusCode.FileActionOK;
+            }
+        }
+
+        private FtpWebRequest connect(string path)
+        {
+            FtpWebRequest request = (FtpWebRequest)WebRequest.Create(path);
+            request.Credentials = new NetworkCredential(customFolder.TargetFolderUser, customFolder.TargetFolderPass);
+            return request;
+        }
+
         /// <summary>Start the file system watcher for each of the file
         /// specification and folders found on the List<>/// </summary>
-        private void startFileSystemWatcher()
+        private async Task startFileSystemWatcher()
         {
             // Creates a new instance of the list
             this.listFileSystemWatcher = new List<FileSystemWatcher>();
-            // Loop the list to process each of the folder specifications found
-            foreach (CustomFolderSettings customFolder in _listFolders)
-            {
-                DirectoryInfo dir = new DirectoryInfo(customFolder.FolderPath);
-                // Checks whether the folder is enabled and
-                // also the directory is a valid location
-                if (customFolder.FolderEnabled && dir.Exists)
-                {
-                    // Creates a new instance of FileSystemWatcher
-                    FileSystemWatcher fileSWatch = new FileSystemWatcher();
-                    // Sets the filter
-                    fileSWatch.Filter = customFolder.FolderFilter;
-                    // Sets the folder location
-                    fileSWatch.Path = customFolder.FolderPath;
-                    // Sets the action to be executed
-                    StringBuilder targetFolder = new StringBuilder(customFolder.TargetFolder);
-                    // List of arguments
-                    // Subscribe to notify filters
-                    fileSWatch.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
-                    // Associate the event that will be triggered when a new file
-                    // is added to the monitored folder, using a lambda expression                   
-                    fileSWatch.Created += (senderObj, fileSysArgs) => fileSWatch_Created(senderObj, fileSysArgs, customFolder);
-                    // Begin watching
-                    fileSWatch.EnableRaisingEvents = true;
-                    // Add the systemWatcher to the list
-                    listFileSystemWatcher.Add(fileSWatch);
+            customFolder = _listFolders[0];
 
-                    // Record a log entry into Windows Event Log
-                    // New-EventLog -LogName Application -Source MyApp
-                    _logger.LogInformation(String.Format("Starting to monitor files with extension ({0}) in the folder ({1})", fileSWatch.Filter, fileSWatch.Path));
+            // Loop the list to process each of the folder specifications found
+            DirectoryInfo dir = new DirectoryInfo(customFolder.TargetFolder);
+            if (customFolder.FolderEnabled && dir.Exists)
+            {
+                // Record a log entry into Windows Event Log
+                _logger.LogInformation(String.Format("Starting to monitor files with extension ({0}) in the folder ({1})", customFolder.FolderFilter, customFolder.FolderPath));
+                while (!this._stop)
+                {
+                    try
+                    {
+                        FtpWebRequest request = this.connect(customFolder.FolderPath);
+                        request.Method = WebRequestMethods.Ftp.ListDirectory;
+
+                        FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+                        Stream responseStream = response.GetResponseStream();
+                        StreamReader reader = new StreamReader(responseStream);
+                        string names = reader.ReadToEnd();
+                        var list = names.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+                        reader.Close();
+                        response.Close();
+
+                        foreach (string name in list)
+                        {
+                            if (name.EndsWith(customFolder.FolderFilter, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger.LogInformation($"File found: {name}");
+
+                                string target = this.downloadFtpFile(name);
+                                _logger.LogInformation($"File downloaded: {target}");
+
+                                this.deleteFtpFile(name);
+
+                                var fi2 = new FileInfo(target);
+                                if (String.Compare(fi2.Extension, customFolder.FolderFilter, StringComparison.OrdinalIgnoreCase) == 0)
+                                {
+                                    await this.fileWatch(fi2, customFolder);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogInformation($"File action failed: {e.Message}");
+                    }
+
+                    await Task.Delay(7000);
                 }
             }
         }
 
-        private async Task fileSWatch_Created(object senderObj, FileSystemEventArgs fileSysArgs, CustomFolderSettings folder)
+        private async Task fileWatch(FileInfo fileSysArgs, CustomFolderSettings folder)
         {
             string tmp = Path.GetTempPath();
             string n = Path.GetFileNameWithoutExtension(fileSysArgs.Name);
             string target = Path.Combine(tmp, String.Format("{0}-{1}.pdf", n, DateTime.Now.ToString("yyyy-MM-dd-HHmm")));
             _logger.LogInformation(String.Format("File found {0}", fileSysArgs.Name));
 
-            File.Copy(fileSysArgs.FullPath, target, true);
+            File.Copy(fileSysArgs.FullName, target, true);
             _logger.LogInformation(String.Format("Copy to {0}", target));
 
             string finalTarget = Path.Combine(folder.TargetFolder, fileSysArgs.Name);
-            File.Move(fileSysArgs.FullPath, finalTarget, true);
+            File.Move(fileSysArgs.FullName, finalTarget, true);
             _logger.LogInformation(String.Format("Move to {0}", finalTarget));
 
             // print the document with defined printer

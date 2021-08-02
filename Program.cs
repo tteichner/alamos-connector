@@ -1,25 +1,17 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System;
+using AlamosConnector;
 
-namespace AlamosConnector
-{
-    public class Program
+
+using IHost host = Host.CreateDefaultBuilder(args)
+    .UseWindowsService(options =>
     {
-        public static void Main(string[] args)
-        {
-            CreateHostBuilder(args).Build().Run();
-        }
-
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .UseWindowsService(options =>
-                {
-                    options.ServiceName = ".NET AlamosConnector Service";
-                })
+        options.ServiceName = ".NET AlamosConnector Service";
+    })
                 .ConfigureServices((hostContext, services) =>
                 {
                     services.AddHostedService<Worker>();
-                });
-    }
-}
+                })
+    .Build();
+
+await host.RunAsync();

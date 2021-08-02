@@ -29,18 +29,34 @@ public class CustomFolderSettings
     /// <summary>If TRUE: the folder and its subfolders will be monitored</summary>
     [XmlElement]
     public bool FolderIncludeSub { get; set; }
+
     /// <summary>Specifies the command or action to be executed
-      /// after an event has raised</summary>
+    /// after an event has raised</summary>
     [XmlElement]
     public string TargetFolder { get; set; }
 
-    /// [XmlElement]
+    [XmlElement]
+    public string TargetFolderUser { get; set; }
+
+   [XmlElement]
+    public string TargetFolderPass { get; set; }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    [XmlElement]
     public string PrinterName { get; set; }
 
-    /// [XmlElement]
+    /// <summary>
+    /// 
+    /// </summary>
+    [XmlElement]
     public string TelegramBotToken { get; set; }
 
-    /// [XmlElement]
+    /// <summary>
+    /// 
+    /// </summary>
+    [XmlElement]
     public string TelegramBotChannel { get; set; }
 
     /// <summary>Default constructor of the class</summary>

@@ -6,10 +6,12 @@
       Files in format PDF
            
     </FolderDescription>
-        <FolderFilter>*.PDF</FolderFilter>
-        <FolderPath>C:\Users\webma\Downloads\</FolderPath>
+        <FolderFilter>.PDF</FolderFilter>
+        <FolderPath>ftp://fritz.box/FRITZ/faxbox/</FolderPath>
         <FolderIncludeSub>false</FolderIncludeSub>
         <TargetFolder>C:\Users\webma\OneDrive\Documents\Zoom\</TargetFolder>
-        <PrinterName>Dell C3765dnf Color MFP</PrinterName>
+        <TargetFolderUser></TargetFolderUser>
+      <TargetFolderPass></TargetFolderPass>
+        <PrinterName></PrinterName>
   </CustomFolderSettings>
 </ArrayOfCustomFolderSettings>
